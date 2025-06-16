@@ -1,0 +1,14 @@
+name: Deploy with HTTPS + Token
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pull latest code from GitHub
+        uses: actions/checkout@v3

@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: airflow-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - airflow_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+
+  airflow-webserver:
+    image: apache/airflow:2.10.5-python3.12
+    build:
+      context: .
+      dockerfile: ./airflow-server/Dockerfile
+    container_name: airflow-server
+    restart: always
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor   
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - PYTHONPATH=/opt/airflow/src:/opt/airflow/data:/opt/airflow/tasks:/opt/airflow/utils:/opt/airflow
+    volumes:
+      - ./airflow-server/dags:/opt/airflow/dags
+      - ./airflow-server/logs:/opt/airflow/logs
+      - ./airflow-server/tasks:/opt/airflow/tasks
+      - ./airflow-server/utils:/opt/airflow/utils
+      - ./crawler-service/src:/opt/airflow/src
+      - ./crawler-service/data:/opt/airflow/data
+      - ./crawler-service/tasks:/opt/airflow/tasks
+      - ./crawler-service/utils:/opt/airflow/utils
+    ports:
+      - "8080:8080"
+    networks:
+      - airflow_network
+    command: >
+      bash -c "airflow db upgrade && airflow standalone"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      - postgres
+
+  # crawler:
+  #   image: python:3.12-slim-bullseye
+  #   build:
+  #     context: .
+  #     dockerfile: ./crawler-service/Dockerfile
+  #   container_name: crawler-service
+  #   environment:
+  #     - PYTHONPATH=/app
+      # - MYSQL_HOST=${MYSQL_HOST}
+      # - MYSQL_USER=${MYSQL_USER}
+      # - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      # - MYSQL_DATABASE=${MYSQL_DATABASE}
+    # volumes:
+    #   - ./crawler-service:/app
+      # - ./crawler-service/src:/src
+      # - ./crawler-service/utils:/src/utils
+      # - ./crawler-service/tasks:/src/tasks
+      # - ./crawler-service/data:/data
+    # working_dir: /app
+    # networks:
+    #   - airflow_network
+    # command: tail -f /dev/null  
+    # command: >
+    #   # bash -c "
+    #   # echo 'Waiting for Airflow webserver...';
+    #   # while ! curl -s http://airflow-webserver:8080/health; do
+    #   # sleep 5;
+    #   # done;
+    #   # echo 'Airflow is ready, running crawler tasks...';
+    #   # cd /app && 
+    #   # poetry install &&
+    #   # python src/accupass/e_accupass_crawler.py &&
+    #   # python src/accupass/l_accupass_mysql_con.py &&
+    #   # python src/accupass/t_accupass_data_clean.py"
+    # depends_on:
+    #   - airflow-webserver
+    #   - postgres
+
+networks:
+  airflow_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+
